@@ -3,7 +3,7 @@ import pandas as pd
 from functree import app, constants, models, tree, analysis, services
 
 def from_table(form):
-    methods=['mean', 'sum']
+    methods = ['mean', 'sum', 'z-score(mean)', 'z-score(sum)']
     if form.modulecoverage.data and services.DefinitionService.has_definition(form.target.data):
         methods.append('modulecoverage')
     result = calc_abundances(f=form.input_file.data, target=form.target.data, methods=methods, distribute=form.distribute.data)

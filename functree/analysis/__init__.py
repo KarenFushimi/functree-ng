@@ -51,6 +51,42 @@ def map_external_annotations(df):
     
     return df_keggified
 
+def test_calc(df, nodes, method, results):
+    df_dict = {} 
+    for node in nodes:
+        entry_profile = None
+        # Skip nodes which was already in df_out
+        if node['entry'] in df_dict:
+            continue
+
+        if 'children' not in node:
+            try:
+                # If node in abundace matrix, input as is
+                entry_profile = df.loc[node['entry']]
+            except KeyError:
+                pass
+        else:
+            # get leaf ids of the current node 
+            targets = [child_node['entry'] for child_node in tree.get_nodes(node) if 'children' not in child_node]
+            try:
+                # loc is row names of data frame
+                loc = df.loc[targets]
+                # sample abundance for a biological entry
+                # Calculated for children of nodes that are not in the input abundance matrix
+                #entry_profile = eval('loc.{}()'.format(method))
+                entry_profile = eval('loc.max(axis=1)')
+                
+            except KeyError:
+                pass
+        # the entry on the tree is not in the submitted profile
+        if entry_profile is not None:
+            df_dict[node['entry']] = entry_profile.to_dict().values()
+
+    df_out = pd.DataFrame.from_dict(df_dict, "index")
+    df_out.columns = df.columns
+    df_out = df_out.dropna(how='all').fillna(0.0)
+    results[method] = df_out
+
 def calc_abundances(df, nodes, method, results):
     """
     Generates mean or sum for all levels of functional Tree
@@ -82,7 +118,13 @@ def calc_abundances(df, nodes, method, results):
                 loc = df.loc[targets]
                 # sample abundance for a biological entry
                 # Calculated for children of nodes that are not in the input abundance matrix
-                entry_profile = eval('loc.{}()'.format(method))
+                if method == 'z-score(mean)':
+                    entry_profile = eval('loc.mean()')
+                elif method == 'z-score(sum)':
+                    entry_profile = eval('loc.sum()')
+                else:
+                    entry_profile = eval('loc.{}()'.format(method))
+                
             except KeyError:
                 pass
         # the entry on the tree is not in the submitted profile
@@ -93,6 +135,8 @@ def calc_abundances(df, nodes, method, results):
     if not df_out.empty:
         df_out.columns = df.columns
         df_out = df_out.dropna(how='all').fillna(0.0)
+        if method == 'z-score(mean)' or method == 'z-score(sum)':
+            df_out = df_out.apply(lambda x: (x-x.mean())/x.std(), axis=1).fillna(0.0)
     results[method] = df_out
 
 def calc_distributed_abundances(df, graph, method, results):
